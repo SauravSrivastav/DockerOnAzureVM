@@ -1,0 +1,232 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "dnsLabelPrefix": {
+      "type": "string",
+      "defaultValue": "[concat('docker-', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+      }
+    },
+    "adminSourceIpAddress": {
+      "type": "string",
+      "defaultValue": "*",
+      "metadata": {
+        "description": "Enter your IP address, x.x.x.x/32 (use ipchicken.com to find this)"
+      }
+    }
+  },
+  "variables": {
+    "GitHubScriptRepo": "SauravSrivastav/DockerOnAzureVM",
+    "GitHubScriptRepoBranch": "master",
+    "GitHubScriptRepoBranchURL": "[concat('https://raw.githubusercontent.com/', variables('GitHubScriptRepo'), '/', variables('GitHubScriptRepoBranch'))]",
+    "sauravVmVnetName": "docker-vm-vnet",
+    "sauravVmVnetPrefix": "192.168.0.0/24",
+    "sauravVmVnetSubnetName": "docker-vm",
+    "sauravVmSubnet1Prefix": "192.168.0.0/24",
+    "sauravVmNsgName": "docker-vm-nsg",
+    "sauravVmName": "dockervm",
+    "sauravVmImagePublisher": "MicrosoftWindowsDesktop",
+    "sauravVmImageOffer": "office-365",
+    "sauravVmWindowsOSVersion": "1903-evd-o365pp",
+    "sauravVmVmSize": "Standard_D4s_v3",
+    "sauravVmID": "[resourceId('Microsoft.Network/virtualNetworks', 'docker-vm-vnet')]",
+    "sauravVmSubnetRef": "[concat(variables('sauravVmID'), '/subnets/', variables('sauravVmVnetSubnetName'))]",
+    "sauravVmNicName": "[concat(variables('sauravVmName'), '-nic')]",
+    "sauravVm-PUBIPName": "[concat(variables('sauravVmName'), '-pip')]",
+    "sauravVmInstallScriptFolder": ".",
+    "sauravVmInstallScriptFileName": "packages.ps1",
+    "sauravVmInstallURL": "[concat(variables('GitHubScriptRepoBranchURL'), '/', variables('sauravVmInstallScriptFileName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2019-09-01",
+      "name": "[variables('sauravVmNsgName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "RDP",
+            "properties": {
+              "protocol": "TCP",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "[parameters('adminSourceIpAddress')]",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 300,
+              "direction": "Inbound",
+              "sourcePortRanges": [
+              ],
+              "destinationPortRanges": [
+              ],
+              "sourceAddressPrefixes": [
+              ],
+              "destinationAddressPrefixes": [
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('sauravVmVnetName')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+      ],
+      "tags": {
+        "Visit": "http://saurav.io"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('sauravVmVnetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('sauravVmVnetSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('sauravVmSubnet1Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('sauravVm-PUBIPName')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2017-10-01",
+      "dependsOn": [
+      ],
+      "tags": {
+        "Visit": "http://saurav.io"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+        }
+      }
+    },
+    {
+      "name": "[variables('sauravVmNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2017-10-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('sauravVmVnetName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('sauravVm-PUBIPName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sauravVmNsgName'))]"
+      ],
+      "tags": {
+        "Visit": "http://saurav.io"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('sauravVmSubnetRef')]"
+              },
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('sauravVm-PUBIPName'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('sauravVmNsgName'))]"
+        }
+      }
+    },
+    {
+      "name": "[variables('sauravVmName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2017-12-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('sauravVmNicName'))]"
+      ],
+      "tags": {
+        "Visit": "http://saurav.io"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('sauravVmVmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[variables('sauravVmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('sauravVmImagePublisher')]",
+            "offer": "[variables('sauravVmImageOffer')]",
+            "sku": "[variables('sauravVmWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "diskSizeGB": 2048
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('sauravVmNicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "InstallsauravVmApps",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2017-12-01",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('sauravVmName'))]"
+          ],
+          "tags": {
+            "Visit": "http://saurav.io"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.9",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[variables('sauravVmInstallURL')]"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File ', variables('sauravVmInstallScriptFolder'), '/', variables('sauravVmInstallScriptFileName'))]"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+  }
+}

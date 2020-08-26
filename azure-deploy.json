@@ -20,13 +20,6 @@
       "metadata": {
         "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
       }
-    },
-    "adminSourceIpAddress": {
-      "type": "string",
-      "defaultValue": "*",
-      "metadata": {
-        "description": "Enter your IP address, x.x.x.x/32 (use ipchicken.com to find this)"
-      }
     }
   },
   "variables": {
@@ -65,7 +58,7 @@
               "protocol": "TCP",
               "sourcePortRange": "*",
               "destinationPortRange": "3389",
-              "sourceAddressPrefix": "[parameters('adminSourceIpAddress')]",
+              "sourceAddressPrefix":  "*",
               "destinationAddressPrefix": "*",
               "access": "Allow",
               "priority": 300,
